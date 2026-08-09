@@ -11,7 +11,7 @@ $SagraHome = 'C:\SAGRA'
 # --- Repository 1: chiavetta USB ---
 # Indicare l'etichetta del volume: la lettera di unita' puo' cambiare,
 # l'etichetta no. Lo script cerca la chiavetta per etichetta.
-$EtichettaUSB     = 'SAGRA'
+$EtichettaUSB     = 'BACKUP_SAGRA'
 $SottocartellaUSB = 'restic-sagra'
 
 # In alternativa, percorso fisso (se valorizzato ha la precedenza):

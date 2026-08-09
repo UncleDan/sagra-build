@@ -4,22 +4,22 @@
 # ============================================================
 
 # --- Cartella dati da salvare ---
-$SagraHome = 'C:\SAGRA'
-# per la versione Sant'Agostino:
-# $SagraHome = 'C:\SAGRA_SANT-AGOSTINO'
+$SagraHome = 'C:\SAGRA_SANT-AGOSTINO'
+# per la versione standard:
+# $SagraHome = 'C:\SAGRA'
 
 # --- Repository 1: chiavetta USB ---
 # Indicare l'etichetta del volume: la lettera di unita' puo' cambiare,
 # l'etichetta no. Lo script cerca la chiavetta per etichetta.
-$EtichettaUSB     = 'SAGRA'
-$SottocartellaUSB = 'restic-sagra'
+$EtichettaUSB     = 'BACKUP_SAGRA'
+$SottocartellaUSB = 'restic-sagra-santagostino'
 
 # In alternativa, percorso fisso (se valorizzato ha la precedenza):
 $RepoUSBFisso = ''
 
 # --- Repository 2: Dropbox via rclone ---
 # 'dropbox' e' il nome del remote configurato con: rclone config
-$RepoCloud = 'rclone:dropbox:Backup/sagra/restic-sagra'
+$RepoCloud = 'rclone:dropbox:Backup/sagra/restic-sagra-santagostino'
 
 # Mettere a $false per disattivare una destinazione.
 $AbilitaUSB   = $true

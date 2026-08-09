@@ -41,6 +41,17 @@ In alternativa, da riga di comando:
 "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /O"dist" "setup.iss"
 ```
 
+**Cartella di installazione**: `C:\SAGRA` e `C:\SAGRA_SANT-AGOSTINO`,
+non `Program Files`. È voluto: l'applicazione VB6 scrive i propri dati
+accanto a sé stessa e usa percorsi assoluti, quindi Program Files
+(protetta da UAC e soggetta a virtualizzazione) creerebbe problemi.
+
+Se la cartella esiste già, il setup avvisa prima di procedere, con due
+livelli:
+- contiene file generici → avviso semplice
+- contiene database o file `.ini` → avviso esplicito che segnala il
+  rischio di sovrascrittura e consiglia una copia di sicurezza
+
 Cosa fa l'installer prodotto:
 - registra i runtime/OCX VB6 (cartella `sys\`) in `SysWOW64`
 - copia l'applicazione in `Program Files (x86)`
