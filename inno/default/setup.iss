@@ -7,6 +7,7 @@
 #define MyAppName "Gestione Stand Gastronomico"
 #define MyAppVersion "3.4.0"
 #define MyAppExeName "Sagra3.4.0.exe"
+#define MyReportName "report-sagra.html"
 #define MySourceDir "C:\SAGRA"
 
 [Setup]
@@ -15,6 +16,9 @@ AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+; dist relativa alla posizione di questo .iss, cosi' l'output
+; e' sempre in dist\ ovunque sia collocato il progetto
+OutputDir=dist
 OutputBaseFilename=Sagra3.4.0_setup
 Compression=lzma
 SolidCompression=yes
@@ -28,12 +32,18 @@ PrivilegesRequired=admin
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
+[Tasks]
+Name: "backup"; Description: "Installa il backup automatico (restic + VSS, ogni 10 minuti)"; GroupDescription: "Opzioni aggiuntive:"; Flags: unchecked
+
 [Files]
 ; --- Runtime e controlli VB6 (estratti dall'installer originale) ---
 Source: "sys\*"; DestDir: "{sys}"; Flags: regserver sharedfile restartreplace uninsneveruninstall
 
 ; --- File informativi originali ---
 Source: "app\ReadMe.txt"; DestDir: "{app}"; Flags: isreadme
+
+; --- Script di backup (restic + VSS) ---
+Source: "backup\*"; DestDir: "{app}\backup"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: backup
 
 ; --- Applicazione principale ---
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -46,10 +56,27 @@ Name: "{group}\Disinstalla {#MyAppName}"; Filename: "{uninstallexe}"
 ; Icona sul Desktop visibile a TUTTI gli utenti ({commondesktop})
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 
+; Collegamenti al report HTML, creati solo se il file e' stato installato
+Name: "{group}\Report Sagra"; Filename: "{app}\{#MyReportName}"; Check: ReportPresente
+Name: "{commondesktop}\Report Sagra"; Filename: "{app}\{#MyReportName}"; Check: ReportPresente
+
 [Run]
+; Configurazione del backup: gira elevato, serve per VSS e Utilita' di pianificazione
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\backup\Install-SagraBackup.ps1"""; \
+  StatusMsg: "Configurazione del backup automatico..."; \
+  Flags: waituntilterminated; Tasks: backup
+
 Filename: "{app}\{#MyAppExeName}"; Description: "Avvia {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// Vero se il report HTML e' stato installato assieme all'applicazione:
+// i collegamenti relativi vengono creati solo in quel caso.
+function ReportPresente: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\{#MyReportName}'));
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then

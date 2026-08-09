@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Gestione Stand Gastronomico - Sant'Agostino
+Comment=Gestione Stand Gastronomico (Sagra3.4.0 - Sant'Agostino) tramite Wine
+Exec=AppRun %F
+Icon=sagra
+Categories=Office;
+Terminal=false

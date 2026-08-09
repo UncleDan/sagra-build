@@ -1,0 +1,1 @@
+Copia qui il contenuto di C:\SAGRA (deve includere Sagra3.4.0.exe alla radice)

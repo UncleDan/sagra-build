@@ -1,0 +1,186 @@
+#!/bin/bash
+# ============================================================
+# AppRun - Gestione Stand Gastronomico (Sagra3.4.0) via Wine
+# Versione: SANT'AGOSTINO
+#
+# Nell'AppImage restano solo eseguibile, .ini di riferimento e
+# librerie. Al primo avvio TUTTO viene copiato nella cartella dati
+# esterna (default ~/sagra-santagostino) e l'applicazione gira da li'.
+#
+#   .exe .dll .ocx .tlb  -> riallineati a ogni avvio (aggiornamento app)
+#   .ini .mdb .db e altro -> copiati SOLO se mancanti, mai sovrascritti
+#
+# Variabili d'ambiente:
+#   SAGRA_HOME   cartella dati  (default: ~/sagra-santagostino)
+#   WINEPREFIX   prefix Wine    (default: ~/.local/share/sagra-wineprefix)
+# ============================================================
+set -e
+
+APPDIR="$(dirname "$(readlink -f "${0}")")"
+PAYLOAD="$APPDIR/usr/share/sagra/app"
+
+export SAGRA_HOME="${SAGRA_HOME:-$HOME/sagra-santagostino}"
+export WINEPREFIX="${WINEPREFIX:-$HOME/.local/share/sagra-santagostino-wineprefix}"
+export WINEARCH=win32
+export WINEDEBUG="${WINEDEBUG:--all}"
+
+# Estensioni "programma": sempre riallineate alla versione dell'AppImage.
+# Tutto il resto (ini, database, archivi, log) e' dato utente: copiato
+# solo se assente, mai sovrascritto.
+PROGRAM_EXT="exe dll ocx tlb chm"
+
+if ! command -v wine >/dev/null 2>&1; then
+    echo "Errore: Wine non e' installato. Installa 'wine' (o 'wine32') dal gestore pacchetti della tua distribuzione."
+    exit 1
+fi
+
+# ------------------------------------------------------------------
+# 1. Prefix Wine + runtime VB6
+# ------------------------------------------------------------------
+FIRST_RUN=0
+if [ ! -d "$WINEPREFIX" ]; then
+    FIRST_RUN=1
+    echo "Prima esecuzione: creazione ambiente Wine in $WINEPREFIX ..."
+    wineboot --init >/dev/null 2>&1
+    wineserver -w
+fi
+
+SYS32="$WINEPREFIX/drive_c/windows/system32"
+mkdir -p "$SYS32"
+
+if [ "$FIRST_RUN" -eq 1 ] || [ ! -f "$WINEPREFIX/.sagra_ocx_registered" ]; then
+    echo "Installazione runtime VB6 (OCX/DLL) nel prefix Wine..."
+    cp -f "$APPDIR/usr/share/sagra/sys/"* "$SYS32/"
+    for f in "$SYS32"/*.ocx "$SYS32"/*.OCX; do
+        [ -e "$f" ] || continue
+        wine regsvr32 /s "$(basename "$f")" 2>/dev/null || true
+    done
+    wineserver -w
+    touch "$WINEPREFIX/.sagra_ocx_registered"
+fi
+
+# ------------------------------------------------------------------
+# 2. Cartella dati esterna persistente
+# ------------------------------------------------------------------
+is_program_file() {
+    local ext="${1##*.}"
+    ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
+    for e in $PROGRAM_EXT; do
+        [ "$ext" = "$e" ] && return 0
+    done
+    return 1
+}
+
+if [ ! -d "$SAGRA_HOME" ]; then
+    echo "Primo avvio: creazione cartella dati in $SAGRA_HOME"
+    mkdir -p "$SAGRA_HOME"
+fi
+
+( cd "$PAYLOAD" && find . -mindepth 1 -type d -print0 ) | \
+while IFS= read -r -d '' d; do
+    mkdir -p "$SAGRA_HOME/$d"
+done
+
+( cd "$PAYLOAD" && find . -type f -print0 ) | \
+while IFS= read -r -d '' f; do
+    src="$PAYLOAD/$f"
+    dst="$SAGRA_HOME/$f"
+    if is_program_file "$f"; then
+        if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
+            cp -f "$src" "$dst"
+        fi
+    else
+        [ -e "$dst" ] || cp "$src" "$dst"
+    fi
+done
+
+# ------------------------------------------------------------------
+# 3. Mappa la cartella dati su C:\SAGRA dentro Wine
+#    (necessario se l'applicazione usa percorsi assoluti)
+# ------------------------------------------------------------------
+LINK="$WINEPREFIX/drive_c/SAGRA_SANT-AGOSTINO"
+if [ -L "$LINK" ]; then
+    [ "$(readlink -f "$LINK")" = "$(readlink -f "$SAGRA_HOME")" ] || ln -sfn "$SAGRA_HOME" "$LINK"
+elif [ ! -e "$LINK" ]; then
+    ln -s "$SAGRA_HOME" "$LINK"
+fi
+
+# ------------------------------------------------------------------
+# 3b. Report HTML: voce di menu dedicata (se il file e' presente)
+# ------------------------------------------------------------------
+REPORT_FILE="report-sagra.html"
+
+if [ -f "$SAGRA_HOME/$REPORT_FILE" ]; then
+    APPIMAGE_PATH="${APPIMAGE:-$(readlink -f "$0")}"
+    DESKTOP_DIR="$HOME/.local/share/applications"
+    DESKTOP_FILE="$DESKTOP_DIR/sagra-report-santagostino.desktop"
+    ICON_DST="$HOME/.local/share/icons/sagra-santagostino.png"
+
+    mkdir -p "$DESKTOP_DIR" "$(dirname "$ICON_DST")"
+    [ -f "$ICON_DST" ] || cp "$APPDIR/sagra.png" "$ICON_DST" 2>/dev/null || true
+
+    # riscrive la voce solo se manca o se il percorso dell'AppImage e' cambiato
+    if ! grep -qsF "Exec=\"$APPIMAGE_PATH\" --report" "$DESKTOP_FILE"; then
+        cat > "$DESKTOP_FILE" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Report Sagra - Sant'Agostino
+Comment=Apre il report della sagra nel browser
+Exec="$APPIMAGE_PATH" --report
+Icon=$ICON_DST
+Categories=Office;
+Terminal=false
+DESKTOP
+        chmod +x "$DESKTOP_FILE" 2>/dev/null || true
+        update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
+        echo "Creata voce di menu 'Report Sagra'."
+    fi
+fi
+
+# ------------------------------------------------------------------
+# 4. Avvio
+# ------------------------------------------------------------------
+# --backup-setup installa e attiva il backup automatico
+if [ "${1:-}" = "--backup-setup" ]; then
+    BK="$APPDIR/usr/share/sagra/backup"
+    if [ ! -d "$BK" ]; then
+        echo "Errore: script di backup non inclusi in questa AppImage."
+        exit 1
+    fi
+    TMPBK="$(mktemp -d)"
+    cp -r "$BK/." "$TMPBK/"
+    chmod +x "$TMPBK"/*.sh
+    # precompila la cartella dati corretta per questa variante
+    sed -i "s|^SAGRA_HOME=.*|SAGRA_HOME=\"$SAGRA_HOME\"|" "$TMPBK/config.esempio"
+    ( cd "$TMPBK" && ./install.sh )
+    rc=$?
+    rm -rf "$TMPBK"
+    exit $rc
+fi
+
+# --backup-status mostra lo stato del backup
+if [ "${1:-}" = "--backup-status" ]; then
+    systemctl --user list-timers sagra-backup.timer 2>/dev/null || \
+        echo "Backup non ancora installato: lancia l'AppImage con --backup-setup"
+    echo
+    tail -20 "$HOME/.local/state/sagra-backup/backup.log" 2>/dev/null || true
+    exit 0
+fi
+
+# --report apre il report HTML nel browser invece di lanciare l'app
+if [ "${1:-}" = "--report" ]; then
+    if [ ! -f "$SAGRA_HOME/$REPORT_FILE" ]; then
+        echo "Errore: $REPORT_FILE non presente in $SAGRA_HOME"
+        exit 1
+    fi
+    if command -v xdg-open >/dev/null 2>&1; then
+        exec xdg-open "$SAGRA_HOME/$REPORT_FILE"
+    else
+        echo "xdg-open non disponibile. Apri manualmente:"
+        echo "  $SAGRA_HOME/$REPORT_FILE"
+        exit 1
+    fi
+fi
+
+cd "$SAGRA_HOME"
+exec wine "C:\\SAGRA_SANT-AGOSTINO\\Sagra3.4.0.exe" "$@"

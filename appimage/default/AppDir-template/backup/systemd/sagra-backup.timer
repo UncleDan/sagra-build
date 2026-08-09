@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup dati sagra ogni 10 minuti
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Persistent=true
+Unit=sagra-backup.service
+
+[Install]
+WantedBy=timers.target

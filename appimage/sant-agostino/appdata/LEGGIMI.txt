@@ -1,0 +1,1 @@
+Copia qui il contenuto di C:\SAGRA_SANT-AGOSTINO (deve includere Sagra3.4.0.exe alla radice)

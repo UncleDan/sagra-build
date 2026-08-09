@@ -1,0 +1,60 @@
+# ============================================================
+# Configurazione backup sagra
+# Copiare in ~/.config/sagra-backup/config e adattare.
+# ============================================================
+
+# --- Cartella dati da salvare ---
+SAGRA_HOME="$HOME/sagra"
+
+# Nome del processo Wine da mettere in pausa durante la copia.
+# Vuoto = nessuna pausa (sconsigliato con database aperti).
+PROCESSO_APP="Sagra3.4.0.exe"
+
+# --- Metodo per ottenere una copia coerente ---
+#   auto     prova lo snapshot del filesystem, altrimenti usa la pausa
+#   snapshot solo snapshot (Btrfs/ZFS/LVM); fallisce se non disponibile
+#   pausa    solo SIGSTOP/SIGCONT sull'applicazione (nessun privilegio)
+#
+# Lo snapshot e' l'equivalente piu' fedele di VSS, ma richiede root
+# (direttamente o via sudo senza password). La pausa funziona sempre.
+METODO="auto"
+
+# --- Area di staging (copia locale rapida, poi salvata da restic) ---
+STAGING="$HOME/.cache/sagra-backup/staging"
+
+# --- Repository 1: chiavetta USB ---
+# Percorso della cartella repository sulla chiavetta.
+# Se la chiavetta non e' montata il backup su USB viene saltato
+# (senza far fallire quello su Dropbox).
+REPO_USB="/media/$USER/SAGRA/restic-sagra"
+
+# --- Repository 2: Dropbox via rclone ---
+# 'dropbox' e' il nome del remote configurato con: rclone config
+REPO_CLOUD="rclone:dropbox:Backup/sagra/restic-sagra"
+
+# Metti a 0 per disattivare una delle due destinazioni.
+ABILITA_USB=1
+ABILITA_CLOUD=1
+
+# --- Password del repository restic ---
+# Il file deve contenere solo la password, con permessi 600.
+RESTIC_PASSWORD_FILE="$HOME/.config/sagra-backup/restic-password"
+
+# --- Compressione restic: off | auto | max ---
+# 'off' e' il piu' veloce; la deduplica funziona comunque.
+RESTIC_COMPRESSION="off"
+
+# --- Retention ---
+# Applicata dopo ogni backup (operazione leggera).
+KEEP_LAST=72          # ultimi 72 snapshot (~12 ore a 10 min)
+KEEP_HOURLY=48
+KEEP_DAILY=14
+KEEP_WEEKLY=8
+
+# Il 'prune' (recupero spazio effettivo) e' pesante: eseguito solo
+# se sono passate almeno queste ore dall'ultima volta.
+ORE_TRA_PRUNE=24
+
+# --- Log ---
+LOG_FILE="$HOME/.local/state/sagra-backup/backup.log"
+LOG_MAX_KB=2048
