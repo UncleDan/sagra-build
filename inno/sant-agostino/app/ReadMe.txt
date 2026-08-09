@@ -1,0 +1,1 @@
+Questa directory e relativo contenuto possono essere cancellati
