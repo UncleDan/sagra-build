@@ -29,6 +29,9 @@ export WINEDEBUG="${WINEDEBUG:--all}"
 # solo se assente, mai sovrascritto.
 PROGRAM_EXT="exe dll ocx tlb chm"
 
+# percorso Windows dell'eseguibile dentro il prefix Wine
+WINE_EXE_PATH="C:\\SAGRA\\Sagra3.4.0.exe"
+
 if ! command -v wine >/dev/null 2>&1; then
     echo "Errore: Wine non e' installato. Installa 'wine' (o 'wine32') dal gestore pacchetti della tua distribuzione."
     exit 1
@@ -238,6 +241,83 @@ crea_voci_menu
 # ------------------------------------------------------------------
 # 4. Avvio
 # ------------------------------------------------------------------
+# --analizza: cerca dentro l'eseguibile i riferimenti a librerie e
+# controlli, e verifica quali risultano presenti nel prefix Wine
+if [ "${1:-}" = "--analizza" ]; then
+    EXE="$SAGRA_HOME/Sagra3.4.0.exe"
+    if [ ! -f "$EXE" ]; then
+        echo "Eseguibile non trovato: $EXE"
+        exit 1
+    fi
+    command -v strings >/dev/null 2>&1 || { echo "Serve il comando 'strings' (pacchetto binutils)."; exit 1; }
+
+    echo "=== Librerie e controlli citati nell'eseguibile ==="
+    RIF="$(strings -a "$EXE" | grep -oiE '[A-Za-z0-9_.-]+\.(ocx|dll|tlb)' | tr '[:upper:]' '[:lower:]' | sort -u)"
+
+    if [ -z "$RIF" ]; then
+        echo "  (nessun riferimento testuale trovato)"
+    else
+        printf '%s\n' "$RIF" | while read -r lib; do
+            [ -n "$lib" ] || continue
+            if find "$WINEPREFIX/drive_c" -iname "$lib" 2>/dev/null | grep -q .; then
+                echo "  [presente]  $lib"
+            else
+                echo "  [ASSENTE]   $lib"
+            fi
+        done
+    fi
+    echo
+    echo "Le voci [ASSENTE] sono le candidate a provocare l'errore 429."
+    echo "Copiale dal PC Windows (di norma da C:\\Windows\\SysWOW64)"
+    echo "in:  $WINEPREFIX/drive_c/windows/system32"
+    echo "poi registra i controlli con:"
+    echo "  \"$0\" --ripara-runtime"
+    exit 0
+fi
+
+# --traccia: avvia l'app registrando gli errori OLE, per identificare
+# il componente COM che manca (causa dell'errore 429)
+if [ "${1:-}" = "--traccia" ]; then
+    LOGT="$SAGRA_HOME/traccia-ole.log"
+    echo "Avvio con tracciamento OLE. Riproduci l'errore, poi chiudi l'applicazione."
+    echo "Log: $LOGT"
+    echo
+    cd "$SAGRA_HOME"
+    WINEDEBUG=+ole,+ver wine "$WINE_EXE_PATH" > "$LOGT" 2>&1 || true
+    wineserver -w
+
+    echo "=== Componenti COM richiesti e non trovati ==="
+    grep -oiE 'CLSID[ _]?\{?[0-9A-F-]{36}\}?' "$LOGT" 2>/dev/null | sort -u | head -20
+    echo
+    echo "--- righe di errore rilevanti ---"
+    grep -iE "not registered|class not reg|no class|0x80040154|REGDB_E_CLASSNOTREG|err:ole" "$LOGT" 2>/dev/null | \
+        sed 's/^/  /' | head -20
+    echo
+    echo "Per risolvere i CLSID trovati, cercali nel registro di Wine:"
+    echo "  grep -i -A3 '<CLSID>' \"$WINEPREFIX/system.reg\" \"$WINEPREFIX/user.reg\""
+    echo
+    echo "Log completo: $LOGT"
+    exit 0
+fi
+
+# --installa-dati: aggiunge Jet/DAO/ADO tramite winetricks
+if [ "${1:-}" = "--installa-dati" ]; then
+    if ! command -v winetricks >/dev/null 2>&1; then
+        echo "winetricks non installato. Installalo con:"
+        echo "  sudo apt install winetricks       (Debian/Ubuntu)"
+        echo "  sudo dnf install winetricks       (Fedora)"
+        echo "  sudo pacman -S winetricks         (Arch)"
+        exit 1
+    fi
+    echo "Installazione componenti dati nel prefix Wine..."
+    echo "(puo' richiedere qualche minuto e scarica file da Microsoft)"
+    WINEPREFIX="$WINEPREFIX" WINEARCH=win32 winetricks -q vb6run jet40 mdac28
+    wineserver -w
+    echo
+    echo "Fatto. Riprova ad avviare l'applicazione."
+    exit 0
+fi
+
 # --diagnostica: verifica lo stato del runtime VB6 nel prefix Wine
 if [ "${1:-}" = "--diagnostica" ]; then
     echo "=== Diagnostica runtime ==="
@@ -341,4 +421,4 @@ if [ "${1:-}" = "--report" ]; then
 fi
 
 cd "$SAGRA_HOME"
-exec wine "C:\\SAGRA\\Sagra3.4.0.exe" "$@"
+exec wine "$WINE_EXE_PATH" "$@"

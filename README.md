@@ -145,6 +145,33 @@ più comune di `Runtime error 429`.
 `--ripara-runtime` forza la reinstallazione e registrazione delle
 librerie.
 
+Se i controlli si registrano tutti ma l'errore 429 persiste, il
+componente mancante non e' tra quelli distribuiti. Due strumenti per
+individuarlo:
+
+```bash
+# analisi statica: cerca nell'eseguibile i riferimenti a librerie
+# e segnala quali non sono presenti nel prefix Wine
+./GestioneStandGastronomico-x86_64.AppImage --analizza
+
+# tracciamento: avvia l'app registrando gli errori OLE
+./GestioneStandGastronomico-x86_64.AppImage --traccia
+```
+
+La causa piu' frequente in un gestionale VB6 con database Access sono
+i componenti di accesso ai dati (Jet/DAO/ADO), che Wine non include:
+
+```bash
+./GestioneStandGastronomico-x86_64.AppImage --installa-dati
+```
+
+che equivale a `winetricks -q vb6run jet40 mdac28` sul prefix giusto.
+
+In alternativa, i file segnalati come assenti da `--analizza` si
+possono copiare dal PC Windows (di norma da `C:\Windows\SysWOW64`)
+dentro `drive_c/windows/system32` del prefix, poi rilanciare
+`--ripara-runtime`.
+
 ## Report HTML (`report-sagra.html`)
 
 Se il file `report-sagra.html` è presente nella cartella dell'app,
