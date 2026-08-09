@@ -241,6 +241,68 @@ crea_voci_menu
 # ------------------------------------------------------------------
 # 4. Avvio
 # ------------------------------------------------------------------
+# risolve un ProgID nel registro di Wine fino al file che lo fornisce
+# ProgID -> CLSID -> InprocServer32 -> il file esiste davvero?
+verifica_progid() {
+    local pid="$1"
+    local reg1="$WINEPREFIX/system.reg" reg2="$WINEPREFIX/user.reg"
+    local needle clsid srv unix_path base
+
+    # nel registro di Wine i backslash sono raddoppiati: costruiamo
+    # l'ago di ricerca nella stessa forma e confrontiamo letteralmente
+    needle="Classes\\\\$pid"
+
+    # NB: awk -v interpreta le sequenze di escape e dimezzerebbe i
+    # backslash: il valore va passato tramite l'ambiente
+    clsid="$(VP_NEEDLE="$needle" awk '
+        BEGIN { n = ENVIRON["VP_NEEDLE"]; want = 0 }
+        substr($0,1,1) == "[" {
+            want = (index(tolower($0), tolower(n)) > 0 && index($0, "CLSID]") > 0)
+            next
+        }
+        want && substr($0,1,3) == "@=\"" {
+            v = substr($0, 4)
+            sub(/"$/, "", v)
+            if (substr(v,1,1) == "{") { print v; exit }
+        }
+    ' "$reg1" "$reg2" 2>/dev/null)"
+
+    if [ -z "$clsid" ]; then
+        echo "  [ProgID NON REGISTRATO]  $pid"
+        return 1
+    fi
+
+    srv="$(VP_CLSID="$clsid" awk '
+        BEGIN { cls = ENVIRON["VP_CLSID"]; want = 0 }
+        substr($0,1,1) == "[" {
+            want = (index($0, cls) > 0 && index($0, "InprocServer32") > 0)
+            next
+        }
+        want && substr($0,1,3) == "@=\"" {
+            v = substr($0, 4)
+            sub(/"$/, "", v)
+            print v
+            exit
+        }
+    ' "$reg1" "$reg2" 2>/dev/null)"
+
+    if [ -z "$srv" ]; then
+        echo "  [SENZA SERVER]           $pid  ($clsid)"
+        return 1
+    fi
+
+    base="$(printf '%s' "$srv" | sed 's|.*[\\/]||')"
+    unix_path="$(find "$WINEPREFIX/drive_c" -iname "$base" 2>/dev/null | head -1)"
+
+    if [ -n "$unix_path" ]; then
+        echo "  [ok]                     $pid  ->  $base"
+        return 0
+    else
+        echo "  [FILE MANCANTE]          $pid  ->  $base"
+        return 1
+    fi
+}
+
 # --analizza: cerca dentro l'eseguibile i riferimenti a librerie e
 # controlli, e verifica quali risultano presenti nel prefix Wine
 if [ "${1:-}" = "--analizza" ]; then
@@ -287,12 +349,7 @@ if [ "${1:-}" = "--analizza" ]; then
     else
         printf '%s\n' "$PROGID" | while read -r pid; do
             [ -n "$pid" ] || continue
-            if grep -qiF "\\\\$pid\\\\" "$WINEPREFIX/system.reg" "$WINEPREFIX/user.reg" 2>/dev/null || \
-               grep -qiF "[$pid]" "$WINEPREFIX/system.reg" "$WINEPREFIX/user.reg" 2>/dev/null; then
-                echo "  [registrato]  $pid"
-            else
-                echo "  [NON REG.]    $pid"
-            fi
+            verifica_progid "$pid"
         done
     fi
     echo
@@ -303,6 +360,14 @@ if [ "${1:-}" = "--analizza" ]; then
         grep -viE '^(microsoft|windows|system|program|common|version|http|www)\.' | \
         sort -u | head -25 | sed 's/^/  /'
     echo "  (elenco grezzo: molte righe saranno rumore, cerca nomi tipo Libreria.Classe)"
+    echo
+    echo "--- verifica dei controlli ActiveX citati ---"
+    estrai_stringhe | \
+        grep -oE '\b(MSComCtl2|MSComctlLib|MSComDlg|MSFlexGridLib|MSHierarchicalFlexGridLib|RichTextLib|TabDlg|MSMask|MSWinsockLib|MSChart20Lib|ComctlLib)\.[A-Za-z0-9_]+' | \
+        sort -u | while read -r ctl; do
+            [ -n "$ctl" ] || continue
+            verifica_progid "$ctl"
+        done
     echo
     echo "Se compaiono voci [NON REG.] con prefisso DAO, ADODB o ADOX,"
     echo "servono i componenti dati:  \"$0\" --installa-dati"
