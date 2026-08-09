@@ -252,7 +252,14 @@ if [ "${1:-}" = "--analizza" ]; then
     command -v strings >/dev/null 2>&1 || { echo "Serve il comando 'strings' (pacchetto binutils)."; exit 1; }
 
     echo "=== Librerie e controlli citati nell'eseguibile ==="
-    RIF="$(strings -a "$EXE" | grep -oiE '[A-Za-z0-9_.-]+\.(ocx|dll|tlb)' | tr '[:upper:]' '[:lower:]' | sort -u)"
+    # VB6 memorizza le stringhe del programma in UTF-16: vanno lette
+    # sia in ASCII (tabella di import) sia in UTF-16LE (letterali)
+    estrai_stringhe() {
+        strings -a "$EXE" 2>/dev/null
+        strings -a -el "$EXE" 2>/dev/null
+    }
+
+    RIF="$(estrai_stringhe | grep -oiE '[A-Za-z0-9_.-]+\.(ocx|dll|tlb)' | tr '[:upper:]' '[:lower:]' | sort -u)"
 
     if [ -z "$RIF" ]; then
         echo "  (nessun riferimento testuale trovato)"
@@ -271,8 +278,8 @@ if [ "${1:-}" = "--analizza" ]; then
     echo "L'errore 429 nasce quasi sempre da CreateObject(\"Qualcosa.Qualcosa\"),"
     echo "che non cita nessun file: va cercato nel registro di Wine."
     echo
-    PROGID="$(strings -a "$EXE" | \
-        grep -oE '\b(ADODB|DAO|ADOX|JRO|Scripting|Excel|Word|Outlook|Shell|WScript|VBScript|MSXML2?|CDO|Access|SQLDMO)\.[A-Za-z0-9._]+' | \
+    PROGID="$(estrai_stringhe | \
+        grep -oE '\b(ADODB|DAO|ADOX|JRO|Scripting|Excel|Word|Outlook|Shell|WScript|VBScript|MSXML2?|CDO|Access|SQLDMO|Crystal|VSPrinter|Rdo|MAPI)\.[A-Za-z0-9._]+' | \
         sort -u)"
 
     if [ -z "$PROGID" ]; then
@@ -288,6 +295,14 @@ if [ "${1:-}" = "--analizza" ]; then
             fi
         done
     fi
+    echo
+    echo "--- altri possibili ProgID (ricerca generica) ---"
+    estrai_stringhe | \
+        grep -oE '\b[A-Za-z][A-Za-z0-9]{2,20}\.[A-Za-z][A-Za-z0-9]{2,20}(\.[0-9]+)?\b' | \
+        grep -viE '\.(dll|ocx|exe|tlb|txt|ini|mdb|log|dat|frm|bas|cls|htm|html|jpg|png|bmp|ico|db|tmp|bak|new|old|xls|doc|pdf|csv|zip)$' | \
+        grep -viE '^(microsoft|windows|system|program|common|version|http|www)\.' | \
+        sort -u | head -25 | sed 's/^/  /'
+    echo "  (elenco grezzo: molte righe saranno rumore, cerca nomi tipo Libreria.Classe)"
     echo
     echo "Se compaiono voci [NON REG.] con prefisso DAO, ADODB o ADOX,"
     echo "servono i componenti dati:  \"$0\" --installa-dati"
