@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup dati sagra (restic -> USB + Dropbox)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/sagra-backup.sh
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Gestione Stand Gastronomico
+Comment=Gestione Stand Gastronomico (Sagra3.4.0) tramite Wine
+Exec=AppRun %F
+Icon=sagra
+Categories=Office;
+Terminal=false
