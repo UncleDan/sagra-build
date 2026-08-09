@@ -48,15 +48,66 @@ fi
 SYS32="$WINEPREFIX/drive_c/windows/system32"
 mkdir -p "$SYS32"
 
-if [ "$FIRST_RUN" -eq 1 ] || [ ! -f "$WINEPREFIX/.sagra_ocx_registered" ]; then
-    echo "Installazione runtime VB6 (OCX/DLL) nel prefix Wine..."
-    cp -f "$APPDIR/usr/share/sagra/sys/"* "$SYS32/"
-    for f in "$SYS32"/*.ocx "$SYS32"/*.OCX; do
+# Librerie che Wine fornisce gia' in versione propria: sovrascriverle
+# con quelle di Windows rompe l'automazione OLE ed e' una causa tipica
+# dell'errore 429 "ActiveX component can't create object".
+WINE_BUILTIN="oleaut32.dll olepro32.dll asycfilt.dll comcat.dll stdole2.tlb"
+
+e_builtin() {
+    local n
+    n="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+    for b in $WINE_BUILTIN; do
+        [ "$n" = "$b" ] && return 0
+    done
+    return 1
+}
+
+installa_runtime() {
+    echo "Installazione runtime VB6 nel prefix Wine..."
+    local errori=0
+
+    # 1. copia, saltando le librerie native di Wine
+    for f in "$APPDIR/usr/share/sagra/sys/"*; do
         [ -e "$f" ] || continue
-        wine regsvr32 /s "$(basename "$f")" 2>/dev/null || true
+        local nome
+        nome="$(basename "$f")"
+        if e_builtin "$nome"; then
+            echo "  [salto]     $nome (fornita da Wine)"
+            continue
+        fi
+        cp -f "$f" "$SYS32/"
+    done
+
+    # 2. registra i controlli, verificando l'esito uno per uno
+    for f in "$SYS32"/*.ocx "$SYS32"/*.OCX "$SYS32"/MSSTDFMT.DLL; do
+        [ -e "$f" ] || continue
+        local nome
+        nome="$(basename "$f")"
+        if ( cd "$SYS32" && wine regsvr32 /s "$nome" ) >/dev/null 2>&1; then
+            echo "  [ok]        $nome"
+        else
+            echo "  [FALLITO]   $nome"
+            errori=$((errori + 1))
+        fi
     done
     wineserver -w
-    touch "$WINEPREFIX/.sagra_ocx_registered"
+
+    if [ "$errori" -eq 0 ]; then
+        touch "$WINEPREFIX/.sagra_ocx_registered"
+        echo "Runtime VB6 registrato correttamente."
+    else
+        # niente marker: al prossimo avvio si riprova
+        rm -f "$WINEPREFIX/.sagra_ocx_registered"
+        echo
+        echo "ATTENZIONE: $errori componenti non registrati."
+        echo "L'applicazione potrebbe dare 'Runtime error 429'."
+        echo "Esegui la diagnostica:  \"$0\" --diagnostica"
+    fi
+    return 0
+}
+
+if [ "$FIRST_RUN" -eq 1 ] || [ ! -f "$WINEPREFIX/.sagra_ocx_registered" ]; then
+    installa_runtime
 fi
 
 # ------------------------------------------------------------------
@@ -106,40 +157,147 @@ elif [ ! -e "$LINK" ]; then
 fi
 
 # ------------------------------------------------------------------
-# 3b. Report HTML: voce di menu dedicata (se il file e' presente)
+# 3b. Voci di menu, raggruppate in una cartella dedicata
 # ------------------------------------------------------------------
+NOME_MENU="Gestione Stand Gastronomico - Sant'Agostino"
+CATEGORIA="X-SagraGSGSA"
+ID_MENU="sagra-gsg-santagostino"
 REPORT_FILE="report-sagra.html"
 
-if [ -f "$SAGRA_HOME/$REPORT_FILE" ]; then
-    APPIMAGE_PATH="${APPIMAGE:-$(readlink -f "$0")}"
-    DESKTOP_DIR="$HOME/.local/share/applications"
-    DESKTOP_FILE="$DESKTOP_DIR/sagra-report-santagostino.desktop"
-    ICON_DST="$HOME/.local/share/icons/sagra-santagostino.png"
+crea_voci_menu() {
+    local appimage_path desktop_dir icon_dir dirfile menudir
+    appimage_path="${APPIMAGE:-$(readlink -f "$0")}"
+    desktop_dir="$HOME/.local/share/applications"
+    icon_dir="$HOME/.local/share/icons"
+    menudir="$HOME/.config/menus/applications-merged"
 
-    mkdir -p "$DESKTOP_DIR" "$(dirname "$ICON_DST")"
-    [ -f "$ICON_DST" ] || cp "$APPDIR/sagra.png" "$ICON_DST" 2>/dev/null || true
+    mkdir -p "$desktop_dir" "$icon_dir" "$menudir" \
+             "$HOME/.local/share/desktop-directories"
 
-    # riscrive la voce solo se manca o se il percorso dell'AppImage e' cambiato
-    if ! grep -qsF "Exec=\"$APPIMAGE_PATH\" --report" "$DESKTOP_FILE"; then
-        cat > "$DESKTOP_FILE" <<DESKTOP
+    cp -f "$APPDIR/sagra.png" "$icon_dir/$ID_MENU.png" 2>/dev/null || true
+
+    # --- voce principale: l'applicazione ---
+    cat > "$desktop_dir/$ID_MENU.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Report Sagra - Sant'Agostino
-Comment=Apre il report della sagra nel browser
-Exec="$APPIMAGE_PATH" --report
-Icon=$ICON_DST
-Categories=Office;
+Name=$NOME_MENU
+Comment=Gestione dello stand gastronomico
+Exec="$appimage_path"
+Icon=$icon_dir/$ID_MENU.png
+Categories=Office;$CATEGORIA;
 Terminal=false
 DESKTOP
-        chmod +x "$DESKTOP_FILE" 2>/dev/null || true
-        update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
-        echo "Creata voce di menu 'Report Sagra'."
+
+    # --- voce report, solo se il file esiste ---
+    if [ -f "$SAGRA_HOME/$REPORT_FILE" ]; then
+        cat > "$desktop_dir/$ID_MENU-report.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Report Sagra
+Comment=Apre il report della sagra nel browser
+Exec="$appimage_path" --report
+Icon=$icon_dir/$ID_MENU.png
+Categories=Office;$CATEGORIA;
+Terminal=false
+DESKTOP
+    else
+        rm -f "$desktop_dir/$ID_MENU-report.desktop"
     fi
-fi
+
+    # --- cartella di menu che raggruppa le voci ---
+    dirfile="$HOME/.local/share/desktop-directories/$ID_MENU.directory"
+    cat > "$dirfile" <<DIRECTORY
+[Desktop Entry]
+Type=Directory
+Name=$NOME_MENU
+Icon=$icon_dir/$ID_MENU.png
+DIRECTORY
+
+    cat > "$menudir/$ID_MENU.menu" <<MENU
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
+<Menu>
+  <Name>Applications</Name>
+  <Menu>
+    <Name>$NOME_MENU</Name>
+    <Directory>$ID_MENU.directory</Directory>
+    <Include>
+      <Category>$CATEGORIA</Category>
+    </Include>
+  </Menu>
+</Menu>
+MENU
+
+    update-desktop-database "$desktop_dir" >/dev/null 2>&1 || true
+}
+
+# le voci vengono riscritte a ogni avvio: cosi' restano valide anche
+# se l'AppImage viene spostata
+crea_voci_menu
 
 # ------------------------------------------------------------------
 # 4. Avvio
 # ------------------------------------------------------------------
+# --diagnostica: verifica lo stato del runtime VB6 nel prefix Wine
+if [ "${1:-}" = "--diagnostica" ]; then
+    echo "=== Diagnostica runtime ==="
+    echo "WINEPREFIX : $WINEPREFIX"
+    echo "SAGRA_HOME : $SAGRA_HOME"
+    echo "Wine       : $(wine --version 2>/dev/null || echo 'NON INSTALLATO')"
+    echo
+    echo "--- Librerie in system32 ---"
+    for f in "$APPDIR/usr/share/sagra/sys/"*; do
+        n="$(basename "$f")"
+        if e_builtin "$n"; then
+            echo "  [Wine]      $n (nativa di Wine, non copiata)"
+        elif [ -f "$SYS32/$n" ]; then
+            echo "  [presente]  $n"
+        else
+            echo "  [MANCANTE]  $n"
+        fi
+    done
+    echo
+    echo "--- Registrazione controlli ---"
+    for f in "$SYS32"/*.ocx "$SYS32"/*.OCX; do
+        [ -e "$f" ] || continue
+        n="$(basename "$f")"
+        if ( cd "$SYS32" && wine regsvr32 /s "$n" ) >/dev/null 2>&1; then
+            echo "  [ok]        $n"
+        else
+            echo "  [FALLITO]   $n"
+        fi
+    done
+    wineserver -w
+    echo
+    echo "--- Componenti per l'accesso ai dati (causa tipica del 429) ---"
+    for c in msjet40.dll msjetoledb40.dll dao360.dll msado15.dll; do
+        if find "$WINEPREFIX/drive_c" -iname "$c" 2>/dev/null | grep -q .; then
+            echo "  [presente]  $c"
+        else
+            echo "  [assente]   $c"
+        fi
+    done
+    echo
+    if command -v winetricks >/dev/null 2>&1; then
+        echo "winetricks disponibile. Se i componenti dati sono assenti:"
+        echo "  WINEPREFIX=\"$WINEPREFIX\" WINEARCH=win32 winetricks -q vb6run jet40 mdac28"
+    else
+        echo "winetricks NON installato: e' lo strumento piu' semplice per"
+        echo "aggiungere Jet/DAO/ADO, spesso necessari a un'app VB6 con database Access."
+        echo "  Debian/Ubuntu:  sudo apt install winetricks"
+        echo "Poi:"
+        echo "  WINEPREFIX=\"$WINEPREFIX\" WINEARCH=win32 winetricks -q vb6run jet40 mdac28"
+    fi
+    exit 0
+fi
+
+# --ripara-runtime: forza la reinstallazione e registrazione delle librerie
+if [ "${1:-}" = "--ripara-runtime" ]; then
+    rm -f "$WINEPREFIX/.sagra_ocx_registered"
+    installa_runtime
+    exit 0
+fi
+
 # --backup-setup installa e attiva il backup automatico
 if [ "${1:-}" = "--backup-setup" ]; then
     BK="$APPDIR/usr/share/sagra/backup"

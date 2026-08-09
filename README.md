@@ -41,6 +41,17 @@ In alternativa, da riga di comando:
 "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /O"dist" "setup.iss"
 ```
 
+**Cartella di installazione**: `C:\SAGRA` e `C:\SAGRA_SANT-AGOSTINO`,
+non `Program Files`. È voluto: l'applicazione VB6 scrive i propri dati
+accanto a sé stessa e usa percorsi assoluti, quindi Program Files
+(protetta da UAC e soggetta a virtualizzazione) creerebbe problemi.
+
+Se la cartella esiste già, il setup avvisa prima di procedere, con due
+livelli:
+- contiene file generici → avviso semplice
+- contiene database o file `.ini` → avviso esplicito che segnala il
+  rischio di sovrascrittura e consiglia una copia di sicurezza
+
 Cosa fa l'installer prodotto:
 - registra i runtime/OCX VB6 (cartella `sys\`) in `SysWOW64`
 - copia l'applicazione in `Program Files (x86)`
@@ -101,6 +112,38 @@ dove sono già presenti perché l'applicazione ci gira — è il metodo
 più affidabile.
 
 ---
+
+## Voci di menu su Linux
+
+L'AppImage crea a ogni avvio le proprie voci di menu, raggruppate in
+una cartella dedicata (`Gestione Stand Gastronomico`, oppure
+`... - Sant'Agostino`):
+
+- **Gestione Stand Gastronomico** — avvia l'applicazione
+- **Report Sagra** — apre il report nel browser (solo se il file è
+  presente)
+
+Il raggruppamento usa un file `.directory` più un file `.menu` in
+`~/.config/menus/applications-merged`. Funziona su XFCE, KDE, MATE e
+Cinnamon; GNOME ignora le cartelle di menu e mostra le voci singole.
+
+Le voci vengono riscritte a ogni avvio, così restano valide anche se
+sposti l'AppImage.
+
+## Diagnostica del runtime Wine
+
+```bash
+./GestioneStandGastronomico-x86_64.AppImage --diagnostica
+./GestioneStandGastronomico-x86_64.AppImage --ripara-runtime
+```
+
+`--diagnostica` verifica quali librerie sono installate, prova a
+registrare i controlli riportando gli esiti uno per uno, e controlla
+la presenza dei componenti di accesso ai dati (Jet/DAO/ADO) — la causa
+più comune di `Runtime error 429`.
+
+`--ripara-runtime` forza la reinstallazione e registrazione delle
+librerie.
 
 ## Report HTML (`report-sagra.html`)
 

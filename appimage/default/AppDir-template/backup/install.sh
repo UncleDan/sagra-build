@@ -160,6 +160,52 @@ else
     echo "  salvata in $PWFILE (permessi 600)"
 fi
 
+# ------------------------------------------------------------------
+# Controllo della chiavetta di backup
+# ------------------------------------------------------------------
+ETICHETTA_ATTESA="BACKUP_SAGRA"
+
+echo "== Chiavetta di backup =="
+echo "  La chiavetta usata per i backup deve avere etichetta di volume:"
+echo "      $ETICHETTA_ATTESA"
+echo "  E' cosi' che il backup la riconosce, indipendentemente dal"
+echo "  punto di mount assegnato dal sistema."
+echo
+
+if command -v lsblk >/dev/null 2>&1; then
+    # elenca i dispositivi rimovibili con etichetta
+    RIMOVIBILI="$(lsblk -o NAME,LABEL,RM,TYPE -nr 2>/dev/null | awk '$3=="1" && $4=="part"')"
+
+    if [ -z "$RIMOVIBILI" ]; then
+        echo "  Nessuna chiavetta inserita in questo momento."
+        echo "  Ricordati di prepararne una con etichetta '$ETICHETTA_ATTESA'"
+        echo "  prima della sagra, altrimenti restera' attivo solo il backup su Dropbox."
+    elif printf '%s\n' "$RIMOVIBILI" | awk '{print $2}' | grep -qx "$ETICHETTA_ATTESA"; then
+        echo "  Trovata una chiavetta con l'etichetta corretta."
+    else
+        echo "  Chiavette inserite, ma nessuna con l'etichetta richiesta:"
+        printf '%s\n' "$RIMOVIBILI" | while read -r nome etichetta _resto; do
+            [ -n "$nome" ] || continue
+            echo "    /dev/$nome  ${etichetta:-(senza etichetta)}"
+        done
+        echo
+        echo "  Come sistemare (la rinomina NON cancella i dati):"
+        echo "    ext4:   sudo e2label /dev/sdXN $ETICHETTA_ATTESA"
+        echo "    FAT32:  sudo fatlabel /dev/sdXN $ETICHETTA_ATTESA"
+        echo "    exFAT:  sudo exfatlabel /dev/sdXN $ETICHETTA_ATTESA"
+        echo "    NTFS:   sudo ntfslabel /dev/sdXN $ETICHETTA_ATTESA"
+        echo
+        echo "  In alternativa formattala (CANCELLA TUTTO) indicando"
+        echo "  '$ETICHETTA_ATTESA' come nome del volume, ad esempio con GParted."
+        echo
+        echo "  Dopo la rinomina, scollega e ricollega la chiavetta."
+    fi
+else
+    echo "  (comando lsblk non disponibile: controllo saltato)"
+    echo "  Assicurati che la chiavetta abbia etichetta '$ETICHETTA_ATTESA'."
+fi
+echo
+
 echo "== Unit systemd (utente) =="
 install -m 644 "$SCRIPT_DIR/systemd/sagra-backup.service" "$UNIT_DIR/"
 install -m 644 "$SCRIPT_DIR/systemd/sagra-backup.timer"   "$UNIT_DIR/"

@@ -23,10 +23,12 @@ METODO="auto"
 STAGING="$HOME/.cache/sagra-backup/staging"
 
 # --- Repository 1: chiavetta USB ---
+# La chiavetta deve avere etichetta di volume BACKUP_SAGRA.
+ETICHETTA_USB="BACKUP_SAGRA"
 # Percorso della cartella repository sulla chiavetta.
 # Se la chiavetta non e' montata il backup su USB viene saltato
 # (senza far fallire quello su Dropbox).
-REPO_USB="/media/$USER/SAGRA/restic-sagra"
+REPO_USB="/media/$USER/BACKUP_SAGRA/restic-sagra"
 
 # --- Repository 2: Dropbox via rclone ---
 # 'dropbox' e' il nome del remote configurato con: rclone config

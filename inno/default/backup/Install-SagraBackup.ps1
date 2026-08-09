@@ -15,7 +15,11 @@
 [CmdletBinding()]
 param(
     [int]$IntervalloMinuti = 10,
-    [string]$NomeAttivita  = 'Backup Sagra'
+    [string]$NomeAttivita  = 'Backup Sagra',
+
+    # Cartella dati dell'applicazione. Passata dall'installer come {app};
+    # se omessa resta quella del file di configurazione.
+    [string]$SagraHome
 )
 
 $ErrorActionPreference = 'Stop'
@@ -144,6 +148,9 @@ if (Test-Path $Config) {
     # registra i percorsi effettivi degli eseguibili trovati/installati
     # (sostituzione letterale, niente regex: i simboli $ non danno problemi)
     $testo = Get-Content $Config -Raw
+    if ($SagraHome) {
+        $testo = $testo.Replace("`$SagraHome = 'C:\SAGRA'", "`$SagraHome = '$SagraHome'")
+    }
     $testo = $testo.Replace("`$ResticExe = ''", "`$ResticExe = '$resticExe'")
     if ($rcloneExe) {
         $testo = $testo.Replace("`$RcloneExe = ''", "`$RcloneExe = '$rcloneExe'")
@@ -195,6 +202,64 @@ if (Test-Path $PwFile) {
 
     $s1 = $null; $s2 = $null
     Write-Host "  salvata in $PwFile (accesso limitato)" -ForegroundColor Green
+}
+
+# ------------------------------------------------------------------
+# 3b. Controllo della chiavetta di backup
+# ------------------------------------------------------------------
+Write-Step 'Chiavetta di backup'
+
+$EtichettaAttesa = 'BACKUP_SAGRA'
+
+Write-Host "  La chiavetta usata per i backup deve avere etichetta di volume:" -ForegroundColor White
+Write-Host "      $EtichettaAttesa" -ForegroundColor Cyan
+Write-Host "  E' cosi' che il backup la riconosce, qualunque lettera di unita'" -ForegroundColor Gray
+Write-Host "  le venga assegnata dal sistema." -ForegroundColor Gray
+Write-Host ""
+
+$rimovibili = Get-Volume -ErrorAction SilentlyContinue |
+              Where-Object { $_.DriveType -eq 'Removable' -and $_.DriveLetter }
+
+if (-not $rimovibili) {
+    Write-Host "  Nessuna chiavetta inserita in questo momento." -ForegroundColor Yellow
+    Write-Host "  Ricordati di prepararne una con etichetta '$EtichettaAttesa'" -ForegroundColor Yellow
+    Write-Host "  prima della sagra, altrimenti restera' attivo solo il backup su Dropbox." -ForegroundColor Yellow
+}
+elseif ($rimovibili | Where-Object { $_.FileSystemLabel -eq $EtichettaAttesa }) {
+    $ok = $rimovibili | Where-Object { $_.FileSystemLabel -eq $EtichettaAttesa } | Select-Object -First 1
+    Write-Host "  Trovata: unita' $($ok.DriveLetter): con etichetta corretta." -ForegroundColor Green
+}
+else {
+    Write-Host "  Chiavette inserite, ma nessuna con l'etichetta richiesta:" -ForegroundColor Yellow
+    foreach ($v in $rimovibili) {
+        $et = if ($v.FileSystemLabel) { $v.FileSystemLabel } else { '(senza etichetta)' }
+        Write-Host ("    {0}:  {1}" -f $v.DriveLetter, $et)
+    }
+    Write-Host ""
+
+    if ($rimovibili.Count -eq 1) {
+        $v = $rimovibili[0]
+        Write-Host "  Posso rinominare l'unita' $($v.DriveLetter): in '$EtichettaAttesa'." -ForegroundColor White
+        Write-Host "  La rinomina NON cancella i dati presenti sulla chiavetta." -ForegroundColor Gray
+        $r = Read-Host "  Procedo con la rinomina? [S/n]"
+        if ($r -notmatch '^[nN]') {
+            try {
+                Set-Volume -DriveLetter $v.DriveLetter -NewFileSystemLabel $EtichettaAttesa -ErrorAction Stop
+                Write-Host "  Etichetta impostata su '$EtichettaAttesa'." -ForegroundColor Green
+            } catch {
+                Write-Host "  Rinomina non riuscita: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "  Puoi farlo a mano: Esplora file -> tasto destro sulla chiavetta -> Rinomina," -ForegroundColor Yellow
+                Write-Host "  oppure formattarla indicando '$EtichettaAttesa' come nome del volume." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  Saltato. Ricordati di rinominarla o formattarla con etichetta '$EtichettaAttesa'." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Ci sono piu' unita' rimovibili: non rinomino nulla per sicurezza." -ForegroundColor Yellow
+        Write-Host "  Rinomina a mano quella giusta in '$EtichettaAttesa'" -ForegroundColor Yellow
+        Write-Host "  (Esplora file -> tasto destro -> Rinomina), oppure formattala" -ForegroundColor Yellow
+        Write-Host "  indicando '$EtichettaAttesa' come nome del volume." -ForegroundColor Yellow
+    }
 }
 
 # ------------------------------------------------------------------
