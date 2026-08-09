@@ -267,6 +267,35 @@ if [ "${1:-}" = "--analizza" ]; then
         done
     fi
     echo
+    echo "=== Oggetti COM creati per nome (ProgID) ==="
+    echo "L'errore 429 nasce quasi sempre da CreateObject(\"Qualcosa.Qualcosa\"),"
+    echo "che non cita nessun file: va cercato nel registro di Wine."
+    echo
+    PROGID="$(strings -a "$EXE" | \
+        grep -oE '\b(ADODB|DAO|ADOX|JRO|Scripting|Excel|Word|Outlook|Shell|WScript|VBScript|MSXML2?|CDO|Access|SQLDMO)\.[A-Za-z0-9._]+' | \
+        sort -u)"
+
+    if [ -z "$PROGID" ]; then
+        echo "  (nessun ProgID riconosciuto tra quelli comuni)"
+    else
+        printf '%s\n' "$PROGID" | while read -r pid; do
+            [ -n "$pid" ] || continue
+            if grep -qiF "\\\\$pid\\\\" "$WINEPREFIX/system.reg" "$WINEPREFIX/user.reg" 2>/dev/null || \
+               grep -qiF "[$pid]" "$WINEPREFIX/system.reg" "$WINEPREFIX/user.reg" 2>/dev/null; then
+                echo "  [registrato]  $pid"
+            else
+                echo "  [NON REG.]    $pid"
+            fi
+        done
+    fi
+    echo
+    echo "Se compaiono voci [NON REG.] con prefisso DAO, ADODB o ADOX,"
+    echo "servono i componenti dati:  \"$0\" --installa-dati"
+    echo
+    echo "Nota: 'vba6.dll' compare nell'intestazione di ogni eseguibile VB6"
+    echo "come nome del runtime di progetto, ma il file realmente usato e'"
+    echo "msvbvm60.dll: di norma la sua assenza NON e' la causa del 429."
+    echo
     echo "Le voci [ASSENTE] sono le candidate a provocare l'errore 429."
     echo "Copiale dal PC Windows (di norma da C:\\Windows\\SysWOW64)"
     echo "in:  $WINEPREFIX/drive_c/windows/system32"

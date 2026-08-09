@@ -170,7 +170,27 @@ che equivale a `winetricks -q vb6run jet40 mdac28` sul prefix giusto.
 In alternativa, i file segnalati come assenti da `--analizza` si
 possono copiare dal PC Windows (di norma da `C:\Windows\SysWOW64`)
 dentro `drive_c/windows/system32` del prefix, poi rilanciare
-`--ripara-runtime`.
+`--ripara-runtime`. Per includerli stabilmente in tutte le build
+future, mettili in `appimage/common/sys/` e aggiungi il nome a
+`appimage/common/runtime-richiesti.txt`.
+
+### Falso positivo noto: `vba6.dll`
+
+`--analizza` segnala `vba6.dll` come assente su qualsiasi applicazione
+VB6. È normale: l'intestazione di ogni eseguibile VB6 contiene quella
+stringa come nome del runtime di progetto, ma il file realmente
+caricato è `msvbvm60.dll`. Serve davvero solo se l'applicazione ospita
+macro VBA.
+
+Se dovesse servire, `vba6.dll` **non si trova in SysWOW64**: il
+percorso tipico è
+
+```
+C:\Program Files (x86)\Common Files\Microsoft Shared\VBA\VBA6\VBA6.DLL
+```
+
+ed è presente solo se sulla macchina è installato Office o l'IDE
+Visual Basic 6. Vedi `appimage/common/runtime-opzionali.txt`.
 
 ## Report HTML (`report-sagra.html`)
 

@@ -1,0 +1,11 @@
+# Componenti NON presenti nell'installer originale, aggiungibili in
+# common/sys/ solo se servono davvero.
+#
+# vba6.dll
+#   Runtime VBA. Il nome compare nell'intestazione di ogni eseguibile
+#   VB6, ma il file effettivamente caricato e' msvbvm60.dll: serve solo
+#   se l'applicazione ospita davvero macro VBA.
+#   NON si trova in SysWOW64. Percorso tipico su Windows:
+#     C:\Program Files (x86)\Common Files\Microsoft Shared\VBA\VBA6\VBA6.DLL
+#   Viene installato da Office o dall'IDE Visual Basic 6.
+vba6.dll
