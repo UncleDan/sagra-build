@@ -42,7 +42,22 @@ Name: "backup"; Description: "Installa il backup automatico (restic + VSS, ogni 
 
 [Files]
 ; --- Runtime e controlli VB6 (estratti dall'installer originale) ---
-Source: "sys\*"; DestDir: "{sys}"; Flags: regserver sharedfile restartreplace uninsneveruninstall
+; --- Componenti auto-registrabili (espongono DllRegisterServer) ---
+Source: "sys\*.ocx"; DestDir: "{sys}"; Flags: regserver sharedfile restartreplace uninsneveruninstall
+Source: "sys\MSSTDFMT.DLL"; DestDir: "{sys}"; Flags: regserver sharedfile restartreplace uninsneveruninstall
+Source: "sys\msvbvm60.dll"; DestDir: "{sys}"; Flags: regserver sharedfile restartreplace uninsneveruninstall
+
+; --- Librerie di sistema: NON vanno registrate ---
+; asycfilt.dll non espone DllRegisterServer e stdole2.tlb e' una type
+; library: passarle a regsvr32 fa fallire l'installazione con 0x4.
+; Su Windows XP SP2 e successivi fanno parte del sistema operativo e
+; sono protette da Windows File Protection, quindi le copiamo solo se
+; davvero mancanti e senza mai registrarle.
+Source: "sys\asycfilt.dll"; DestDir: "{sys}"; Flags: onlyifdoesntexist sharedfile uninsneveruninstall
+Source: "sys\comcat.dll"; DestDir: "{sys}"; Flags: onlyifdoesntexist sharedfile uninsneveruninstall
+Source: "sys\olepro32.dll"; DestDir: "{sys}"; Flags: onlyifdoesntexist sharedfile uninsneveruninstall
+Source: "sys\oleaut32.dll"; DestDir: "{sys}"; Flags: onlyifdoesntexist sharedfile uninsneveruninstall
+Source: "sys\stdole2.tlb"; DestDir: "{sys}"; Flags: onlyifdoesntexist sharedfile uninsneveruninstall
 
 ; --- File informativi originali ---
 Source: "app\ReadMe.txt"; DestDir: "{app}"; Flags: isreadme

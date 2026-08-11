@@ -53,7 +53,9 @@ livelli:
   rischio di sovrascrittura e consiglia una copia di sicurezza
 
 Cosa fa l'installer prodotto:
-- registra i runtime/OCX VB6 (cartella `sys\`) in `SysWOW64`
+- installa i runtime VB6 (cartella `sys\`) in `SysWOW64`, registrando
+  **solo** i componenti che lo supportano (le OCX, `MSSTDFMT.DLL`,
+  `msvbvm60.dll`)
 - copia l'applicazione in `Program Files (x86)`
 - crea icona nel menu Start e sul **desktop di tutti gli utenti**
 - in disinstallazione **chiede conferma** prima di eliminare la
@@ -91,6 +93,25 @@ serve Wine: quello serve solo per *eseguire* l'AppImage.
 ---
 
 
+### Registrazione: cosa si registra e cosa no
+
+Non tutti i file in `sys\` vanno passati a `regsvr32`:
+
+| File | Trattamento |
+|---|---|
+| `*.ocx`, `MSSTDFMT.DLL`, `msvbvm60.dll` | copiati e **registrati** |
+| `asycfilt.dll`, `comcat.dll`, `olepro32.dll`, `oleaut32.dll`, `stdole2.tlb` | copiati **solo se mancanti**, mai registrati |
+
+`asycfilt.dll` non espone `DllRegisterServer` e `stdole2.tlb` è una
+type library (servirebbe `regtlib`): passarli a `regsvr32` fa fallire
+l'installazione con *"RegSvr32 è fallito con codice di uscita 0x4"*.
+
+Su Windows XP SP2 e successivi quei cinque file fanno parte del
+sistema operativo e sono protetti da Windows File Protection, quindi
+sovrascriverli è inutile e potenzialmente dannoso — per questo hanno
+il flag `onlyifdoesntexist`. È lo stesso motivo per cui l'AppImage le
+salta: Wine fornisce le proprie versioni.
+
 ## Runtime VB6 (`appimage/common/sys`, `inno/*/sys`)
 
 Le cartelle sono già popolate con i componenti estratti dall'installer
@@ -112,6 +133,85 @@ dove sono già presenti perché l'applicazione ci gira — è il metodo
 più affidabile.
 
 ---
+
+## Voci di menu su Linux
+
+L'AppImage crea a ogni avvio le proprie voci di menu, raggruppate in
+una cartella dedicata (`Gestione Stand Gastronomico`, oppure
+`... - Sant'Agostino`):
+
+- **Gestione Stand Gastronomico** — avvia l'applicazione
+- **Report Sagra** — apre il report nel browser (solo se il file è
+  presente)
+
+Il raggruppamento usa un file `.directory` più un file `.menu` in
+`~/.config/menus/applications-merged`. Funziona su XFCE, KDE, MATE e
+Cinnamon; GNOME ignora le cartelle di menu e mostra le voci singole.
+
+Le voci vengono riscritte a ogni avvio, così restano valide anche se
+sposti l'AppImage.
+
+## Diagnostica del runtime Wine
+
+```bash
+./GestioneStandGastronomico-x86_64.AppImage --diagnostica
+./GestioneStandGastronomico-x86_64.AppImage --ripara-runtime
+```
+
+`--diagnostica` verifica quali librerie sono installate, prova a
+registrare i controlli riportando gli esiti uno per uno, e controlla
+la presenza dei componenti di accesso ai dati (Jet/DAO/ADO) — la causa
+più comune di `Runtime error 429`.
+
+`--ripara-runtime` forza la reinstallazione e registrazione delle
+librerie.
+
+Se i controlli si registrano tutti ma l'errore 429 persiste, il
+componente mancante non e' tra quelli distribuiti. Due strumenti per
+individuarlo:
+
+```bash
+# analisi statica: cerca nell'eseguibile i riferimenti a librerie
+# e segnala quali non sono presenti nel prefix Wine
+./GestioneStandGastronomico-x86_64.AppImage --analizza
+
+# tracciamento: avvia l'app registrando gli errori OLE
+./GestioneStandGastronomico-x86_64.AppImage --traccia
+```
+
+La causa piu' frequente in un gestionale VB6 con database Access sono
+i componenti di accesso ai dati (Jet/DAO/ADO), che Wine non include:
+
+```bash
+./GestioneStandGastronomico-x86_64.AppImage --installa-dati
+```
+
+che equivale a `winetricks -q vb6run jet40 mdac28` sul prefix giusto.
+
+In alternativa, i file segnalati come assenti da `--analizza` si
+possono copiare dal PC Windows (di norma da `C:\Windows\SysWOW64`)
+dentro `drive_c/windows/system32` del prefix, poi rilanciare
+`--ripara-runtime`. Per includerli stabilmente in tutte le build
+future, mettili in `appimage/common/sys/` e aggiungi il nome a
+`appimage/common/runtime-richiesti.txt`.
+
+### Falso positivo noto: `vba6.dll`
+
+`--analizza` segnala `vba6.dll` come assente su qualsiasi applicazione
+VB6. È normale: l'intestazione di ogni eseguibile VB6 contiene quella
+stringa come nome del runtime di progetto, ma il file realmente
+caricato è `msvbvm60.dll`. Serve davvero solo se l'applicazione ospita
+macro VBA.
+
+Se dovesse servire, `vba6.dll` **non si trova in SysWOW64**: il
+percorso tipico è
+
+```
+C:\Program Files (x86)\Common Files\Microsoft Shared\VBA\VBA6\VBA6.DLL
+```
+
+ed è presente solo se sulla macchina è installato Office o l'IDE
+Visual Basic 6. Vedi `appimage/common/runtime-opzionali.txt`.
 
 ## Report HTML (`report-sagra.html`)
 
