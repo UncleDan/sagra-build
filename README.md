@@ -253,11 +253,14 @@ quindi spostare il progetto ovunque, lanciarlo da qualsiasi cartella o
 richiamarlo tramite un symlink nel `PATH`: l'output finisce sempre
 accanto allo script.
 
-| Script | Output |
+| Cartella | Contenuto |
 |---|---|
-| `inno/<variante>/build.bat` (e `setup.iss` da IDE) | `inno/<variante>/dist/` |
-| `appimage/<variante>/build-*.sh` | `appimage/<variante>/dist/` |
-| `appimage/<variante>/build-*.ps1` | `appimage/<variante>/dist/` |
+| `<canale>/<variante>/dist/` | il file finale da distribuire |
+| `<canale>/<variante>/build/` | materiale intermedio e strumenti scaricati (`appimagetool`, `AppDir`, log di compilazione) |
+
+Nessuno dei due va versionato: il `.gitignore` nella radice li esclude
+per tutte e quattro le varianti, insieme al contenuto di `appdata/`
+(che viene ricopiato a ogni build dalla cartella sorgente).
 
 ---
 

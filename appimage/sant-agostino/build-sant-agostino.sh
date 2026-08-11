@@ -23,10 +23,12 @@ WIN_DIRNAME="SAGRA_SANT-AGOSTINO"
 APP_NAME="GestioneStandGastronomico-SantAgostino"
 
 APPDATA_DIR="$SCRIPT_DIR/appdata"
-BUILD_DIR="$SCRIPT_DIR/AppDir"
+# tutto il materiale intermedio e i file scaricati stanno sotto build/
+WORK_DIR="$SCRIPT_DIR/build"
+BUILD_DIR="$WORK_DIR/AppDir"
 OUTPUT_DIR="$SCRIPT_DIR/dist"
 COMMON_SYS="$SCRIPT_DIR/../common/sys"
-APPIMAGETOOL="$SCRIPT_DIR/appimagetool.AppImage"
+APPIMAGETOOL="$WORK_DIR/appimagetool.AppImage"
 
 SORGENTE="${1:-}"
 
@@ -169,6 +171,7 @@ fi
 # ------------------------------------------------------------------
 echo "== Assemblaggio AppDir =="
 rm -rf "$BUILD_DIR"
+mkdir -p "$WORK_DIR"
 mkdir -p "$BUILD_DIR/usr/share/sagra/sys"
 mkdir -p "$BUILD_DIR/usr/share/sagra/app"
 mkdir -p "$OUTPUT_DIR"
@@ -195,8 +198,9 @@ rm -f "$BUILD_DIR/usr/share/sagra/app/LEGGIMI.txt" \
 # ------------------------------------------------------------------
 # 5. appimagetool
 # ------------------------------------------------------------------
+mkdir -p "$WORK_DIR"
 if [ ! -f "$APPIMAGETOOL" ]; then
-    echo "== Download appimagetool (solo la prima volta) =="
+    echo "== Download appimagetool in build/ (solo la prima volta) =="
     ARCH_DL="$(uname -m)"
     URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH_DL}.AppImage"
     if command -v curl >/dev/null 2>&1; then
@@ -216,7 +220,10 @@ if [ ! -e /dev/fuse ]; then
     export APPIMAGE_EXTRACT_AND_RUN=1
 fi
 
-ARCH="$(uname -m)" "$APPIMAGETOOL" "$BUILD_DIR" "$OUTPUT_DIR/${APP_NAME}-x86_64.AppImage"
+# appimagetool in modalita' auto-estrazione scrive squashfs-root nella
+# directory corrente: la eseguiamo dentro build/ per non sporcare la
+# cartella del progetto
+( cd "$WORK_DIR" && ARCH="$(uname -m)" "$APPIMAGETOOL" "$BUILD_DIR" "$OUTPUT_DIR/${APP_NAME}-x86_64.AppImage" )
 
 echo
 echo "== Completato =="

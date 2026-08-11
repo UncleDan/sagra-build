@@ -78,7 +78,12 @@ echo Compilazione con: %ISCC%
 echo Output: %BASE%dist
 echo.
 
-"%ISCC%" /O"%BASE%dist" "%BASE%setup.iss"
+if not exist "%BASE%build" mkdir "%BASE%build"
+
+rem /O = cartella di output, /Fo non esiste: Inno usa una temp propria,
+rem ma il log di compilazione lo mettiamo sotto build\
+"%ISCC%" /O"%BASE%dist" "%BASE%setup.iss" > "%BASE%build\compilazione.log" 2>&1
+type "%BASE%build\compilazione.log"
 
 if errorlevel 1 (
     echo.

@@ -1,3 +1,41 @@
-inno/default/dist
-inno/sant-agostino/dist
-inno/common/innosetup-*
+# ============================================================
+# Artefatti di compilazione — non vanno versionati
+# ============================================================
+
+# --- Installer Windows (Inno Setup) ---
+inno/default/build/
+inno/default/dist/
+inno/sant-agostino/build/
+inno/sant-agostino/dist/
+
+# --- AppImage Linux ---
+appimage/default/build/
+appimage/default/dist/
+appimage/sant-agostino/build/
+appimage/sant-agostino/dist/
+
+# Regola generica, per eventuali varianti aggiunte in futuro
+build/
+dist/
+
+# Strumenti scaricati automaticamente
+appimagetool*.AppImage
+squashfs-root/
+
+# ============================================================
+# Dati dell'applicazione: copiati dalla cartella sorgente al
+# momento della build, non fanno parte del progetto.
+# I file guida invece si versionano.
+# ============================================================
+appimage/*/appdata/*
+!appimage/*/appdata/.gitkeep
+!appimage/*/appdata/LEGGIMI.txt
+
+# ============================================================
+# Varie
+# ============================================================
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
