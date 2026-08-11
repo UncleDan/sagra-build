@@ -28,6 +28,7 @@ WORK_DIR="$SCRIPT_DIR/build"
 BUILD_DIR="$WORK_DIR/AppDir"
 OUTPUT_DIR="$SCRIPT_DIR/dist"
 COMMON_SYS="$SCRIPT_DIR/../common/sys"
+COMMON_EXTRA="$SCRIPT_DIR/../common/sys-extra"
 APPIMAGETOOL="$WORK_DIR/appimagetool.AppImage"
 
 SORGENTE="${1:-}"
@@ -184,6 +185,20 @@ cp "$SCRIPT_DIR/AppDir-template/sagra.png" "$BUILD_DIR/.DirIcon"
 
 # la forma "/." copia anche i file nascosti (che il glob "*" salterebbe)
 cp -r "$COMMON_SYS/." "$BUILD_DIR/usr/share/sagra/sys/"
+
+# controlli VB6 aggiuntivi (se la cartella esiste): un form VB6 carica i
+# propri controlli per CLSID, riferimento binario invisibile all'analisi
+# delle stringhe, quindi conviene includerli tutti
+if [ -d "$COMMON_EXTRA" ]; then
+    for f in "$COMMON_EXTRA"/*; do
+        [ -f "$f" ] || continue
+        case "$(basename "$f")" in
+            LEGGIMI.txt|*.md) continue ;;
+        esac
+        cp -f "$f" "$BUILD_DIR/usr/share/sagra/sys/"
+    done
+    echo "  aggiunti $(ls "$COMMON_EXTRA" | grep -icE '\.(ocx|dll)$') controlli aggiuntivi"
+fi
 
 # script di backup (restic), se presenti nel template
 if [ -d "$SCRIPT_DIR/AppDir-template/backup" ]; then

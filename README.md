@@ -114,6 +114,22 @@ salta: Wine fornisce le proprie versioni.
 
 ## Runtime VB6 (`appimage/common/sys`, `inno/*/sys`)
 
+Due cartelle distinte:
+
+| Cartella | Contenuto |
+|---|---|
+| `common/sys` | i componenti estratti dall'installer originale |
+| `common/sys-extra` | controlli VB6 aggiuntivi (~2,9 MB), inclusi solo nell'AppImage |
+
+`sys-extra` esiste per un motivo preciso: un form VB6 carica i propri
+controlli **per CLSID**, e quel riferimento è compilato in forma
+binaria dentro l'eseguibile — non compare come testo, quindi
+`--analizza` non può vederlo. Se manca anche un solo controllo usato da
+un form, VB6 solleva `Runtime error 429`. Includerli tutti costa pochi
+MB ed elimina il problema senza doverli indovinare.
+
+Su Windows non servono: sono già presenti sulla macchina.
+
 Le cartelle sono già popolate con i componenti estratti dall'installer
 originale. Se le svuoti o parti da zero, **gli script le ripopolano da
 soli**:

@@ -1,0 +1,20 @@
+Controlli VB6 aggiuntivi
+========================
+
+Questi controlli NON erano nell'installer originale, ma fanno parte
+della dotazione standard di Visual Basic 6 e sono presenti su qualsiasi
+macchina Windows dove l'applicazione gira.
+
+Servono perche' un form VB6 carica i propri controlli per CLSID: il
+riferimento e' compilato in forma binaria dentro l'eseguibile e NON
+compare come testo, quindi l'analisi delle stringhe non lo rileva. Se
+manca anche un solo controllo usato da un form, VB6 solleva
+"Runtime error 429 - ActiveX component can't create object".
+
+Includerli tutti costa circa 3,7 MB e toglie di mezzo il problema
+senza doverli indovinare uno per uno.
+
+Provenienza: pacchetto "Visual Basic 6.0 Runtime Plus".
+Se un controllo qui presente risulta superfluo, si puo' rimuovere:
+la build include semplicemente tutto quello che trova in questa
+cartella.
